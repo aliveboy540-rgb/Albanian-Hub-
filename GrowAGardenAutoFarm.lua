@@ -4,6 +4,7 @@
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ReplicatedFirst = game:GetService("ReplicatedFirst")
 local Workspace = game:GetService("Workspace")
 local LocalPlayer = Players.LocalPlayer
 local RunService = game:GetService("RunService")
@@ -33,13 +34,16 @@ local seedOptions = {
 }
 
 local function findRemote(nameCandidates)
-    local folders = {ReplicatedStorage, Workspace, LocalPlayer:FindFirstChild("PlayerGui") or nil}
+    local folders = {ReplicatedStorage, Workspace, LocalPlayer:FindFirstChild("PlayerGui")}
     for _, folder in ipairs(folders) do
         if folder then
-            for _, name in ipairs(nameCandidates) do
-                local obj = folder:FindFirstChild(name, true)
-                if obj and (obj:IsA("RemoteFunction") or obj:IsA("RemoteEvent")) then
-                    return obj
+            for _, obj in ipairs(folder:GetDescendants()) do
+                if obj:IsA("RemoteFunction") or obj:IsA("RemoteEvent") then
+                    for _, name in ipairs(nameCandidates) do
+                        if obj.Name:find(name) then
+                            return obj
+                        end
+                    end
                 end
             end
         end
@@ -106,7 +110,14 @@ local function collectFruit()
     end
 
     for _, fruit in ipairs(fruitCandidates) do
-        fireRemote(candidates, fruit)
+        local payload = {
+            fruit = fruit,
+            FruitName = fruit.Name,
+            Name = fruit.Name,
+            Position = fruit.Position,
+        }
+        fireRemote(candidates, payload)
+        task.wait(0.05)
     end
 end
 
@@ -145,7 +156,7 @@ local function safeTask(fn)
 end
 
 spawn(function()
-    while RunService.Heartbeat:Wait() do
+    while true do
         if enabled.autoCollect then
             safeTask(collectFruit)
             task.wait(AUTO_COLLECT_DELAY)
@@ -153,7 +164,7 @@ spawn(function()
             safeTask(collectFruit)
             task.wait(AUTO_FARM_DELAY)
         else
-            task.wait(0.25)
+            task.wait(0.1)
         end
     end
 end)
@@ -189,36 +200,119 @@ spawn(function()
 end)
 
 -- UI setup
-local WindUI
-local success, result = pcall(function()
-    -- Use FindFirstChild so it doesn't wait forever
-    return require(ReplicatedStorage:FindFirstChild("WindUI"))
-end)
+local function findWindUIModule()
+    for _, parent in ipairs({ReplicatedStorage, ReplicatedFirst}) do
+        if parent then
+            local module = parent:FindFirstChild("WindUI", true)
+            if module and module:IsA("ModuleScript") then
+                return module
+            end
+        end
+    end
+    return nil
+end
 
-if success and type(result) == "table" then
-    WindUI = result
-    print("WindUI Loaded Successfully")
-else
-    warn("WindUI not found or failed to load, launching Fallback UI")
-    -- Ensure createFallbackUI is defined ABOVE this line in your file!
-    createFallbackUI()
+local function tryRequireWindUI()
+    local module = findWindUIModule()
+    if not module then
+        return nil
+    end
+
+    local success, result = pcall(require, module)
+    if success and type(result) == "table" then
+        return result
+    end
+    return nil
+end
+
+local WindUI = tryRequireWindUI()
+
+local function createWindUI()
+    if not WindUI or type(WindUI.CreateWindow) ~= "function" then
+        return false
+    end
+
+    local success, err = pcall(function()
+        local window = WindUI:CreateWindow({
+            Title = "Grow A Garden Auto Farm",
+            Size = UDim2.new(0, 380, 0, 480),
+            Theme = "Dark",
+        })
+
+        if not window then
+            error("WindUI.CreateWindow returned nil")
+        end
+
+        local page = window:AddPage("Main")
+        local section = page:AddSection("Automation")
+
+        section:AddToggle("Auto Farm", false, function(value)
+            enabled.autoFarm = value
+        end)
+        section:AddToggle("Auto Collect", false, function(value)
+            enabled.autoCollect = value
+        end)
+        section:AddToggle("Auto Buy Seed", false, function(value)
+            enabled.autoBuySeed = value
+        end)
+        section:AddToggle("Auto Plant Seed", false, function(value)
+            enabled.autoPlant = value
+        end)
+        section:AddToggle("Auto Sell", false, function(value)
+            enabled.autoSell = value
+        end)
+
+        section:AddDropdown("Choose Seed", seedOptions, 1, function(selected)
+            chosenSeed = selected
+        end)
+
+        section:AddLabel("Ideas:")
+        section:AddLabel("- Auto place fertilizer when planting")
+        section:AddLabel("- Auto upgrade tools or farm plots")
+        section:AddLabel("- Auto collect special event fruit and bonuses")
+    end)
+
+    if not success then
+        warn("WindUI failed to create window:", err)
+    end
+
+    return success
 end
 
 local function createFallbackUI()
+    local playerGui = LocalPlayer:FindFirstChild("PlayerGui") or LocalPlayer:WaitForChild("PlayerGui")
+    if not playerGui then
+        warn("Grow A Garden Auto Farm fallback UI could not find PlayerGui.")
+        return
+    end
+
+    local existingGui = playerGui:FindFirstChild("GrowAGardenAutoFarmUI")
+    if existingGui then
+        existingGui:Destroy()
+    end
+
     local screenGui = Instance.new("ScreenGui")
     screenGui.Name = "GrowAGardenAutoFarmUI"
     screenGui.ResetOnSpawn = false
-    screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+    screenGui.IgnoreGuiInset = true
+    screenGui.DisplayOrder = 999
+    screenGui.Parent = playerGui
 
     local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(0, 340, 0, 420)
-    frame.Position = UDim2.new(0, 20, 0.2, 0)
+    frame.Size = UDim2.new(0, 360, 0, 440)
+    frame.Position = UDim2.new(0, 20, 0.15, 0)
     frame.BackgroundColor3 = Color3.fromRGB(20, 25, 35)
     frame.BorderSizePixel = 0
+    frame.ClipsDescendants = true
     frame.Parent = screenGui
+
+    local frameCorner = Instance.new("UICorner")
+    frameCorner.CornerRadius = UDim.new(0, 10)
+    frameCorner.Parent = frame
 
     local title = Instance.new("TextLabel")
     title.Size = UDim2.new(1, 0, 0, 40)
+    title.Position = UDim2.new(0, 0, 0, 0)
     title.BackgroundTransparency = 1
     title.Text = "Grow A Garden Auto Farm"
     title.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -226,24 +320,9 @@ local function createFallbackUI()
     title.Font = Enum.Font.GothamBold
     title.Parent = frame
 
-    local function makeButton(text, position, callback)
-        local button = Instance.new("TextButton")
-        button.Size = UDim2.new(0, 140, 0, 34)
-        button.Position = position
-        button.BackgroundColor3 = Color3.fromRGB(55, 115, 220)
-        button.TextColor3 = Color3.fromRGB(255, 255, 255)
-        button.Font = Enum.Font.Gotham
-        button.Text = text
-        button.TextScaled = true
-        button.Parent = frame
-        button.MouseButton1Click:Connect(callback)
-        return button
-    end
-
-    local statusLabels = {}
     local function makeToggle(name, position, key)
         local label = Instance.new("TextLabel")
-        label.Size = UDim2.new(0, 200, 0, 24)
+        label.Size = UDim2.new(0, 180, 0, 24)
         label.Position = position
         label.BackgroundTransparency = 1
         label.TextColor3 = Color3.fromRGB(235, 235, 235)
@@ -254,31 +333,36 @@ local function createFallbackUI()
         label.Parent = frame
 
         local button = Instance.new("TextButton")
-        button.Size = UDim2.new(0, 110, 0, 28)
-        button.Position = position + UDim2.new(0, 0, 0, 22)
+        button.Size = UDim2.new(0, 140, 0, 30)
+        button.Position = position + UDim2.new(0, 0, 0, 26)
         button.BackgroundColor3 = Color3.fromRGB(48, 94, 172)
         button.TextColor3 = Color3.fromRGB(255, 255, 255)
         button.Font = Enum.Font.Gotham
         button.TextScaled = true
         button.Text = "Off"
+        button.BorderSizePixel = 0
         button.Parent = frame
+
+        local buttonCorner = Instance.new("UICorner")
+        buttonCorner.CornerRadius = UDim.new(0, 6)
+        buttonCorner.Parent = button
+
         button.MouseButton1Click:Connect(function()
             enabled[key] = not enabled[key]
             button.Text = enabled[key] and "On" or "Off"
             button.BackgroundColor3 = enabled[key] and Color3.fromRGB(88, 210, 110) or Color3.fromRGB(48, 94, 172)
         end)
-        return button
     end
 
     makeToggle("Auto Farm", UDim2.new(0, 10, 0, 60), "autoFarm")
-    makeToggle("Auto Collect", UDim2.new(0, 170, 0, 60), "autoCollect")
-    makeToggle("Auto Buy Seed", UDim2.new(0, 10, 0, 130), "autoBuySeed")
-    makeToggle("Auto Plant Seed", UDim2.new(0, 170, 0, 130), "autoPlant")
-    makeToggle("Auto Sell", UDim2.new(0, 10, 0, 200), "autoSell")
+    makeToggle("Auto Collect", UDim2.new(0, 190, 0, 60), "autoCollect")
+    makeToggle("Auto Buy Seed", UDim2.new(0, 10, 0, 120), "autoBuySeed")
+    makeToggle("Auto Plant Seed", UDim2.new(0, 190, 0, 120), "autoPlant")
+    makeToggle("Auto Sell", UDim2.new(0, 10, 0, 180), "autoSell")
 
     local seedLabel = Instance.new("TextLabel")
-    seedLabel.Size = UDim2.new(0, 320, 0, 26)
-    seedLabel.Position = UDim2.new(0, 10, 0, 280)
+    seedLabel.Size = UDim2.new(0, 340, 0, 24)
+    seedLabel.Position = UDim2.new(0, 10, 0, 240)
     seedLabel.BackgroundTransparency = 1
     seedLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
     seedLabel.Text = "Choose Seed: " .. chosenSeed
@@ -288,53 +372,69 @@ local function createFallbackUI()
     seedLabel.Parent = frame
 
     local dropdown = Instance.new("TextButton")
-    dropdown.Size = UDim2.new(0, 320, 0, 36)
-    dropdown.Position = UDim2.new(0, 10, 0, 310)
+    dropdown.Size = UDim2.new(0, 340, 0, 34)
+    dropdown.Position = UDim2.new(0, 10, 0, 274)
     dropdown.BackgroundColor3 = Color3.fromRGB(40, 50, 63)
     dropdown.TextColor3 = Color3.fromRGB(255, 255, 255)
     dropdown.Font = Enum.Font.Gotham
     dropdown.Text = "Change Seed"
     dropdown.TextScaled = true
+    dropdown.BorderSizePixel = 0
     dropdown.Parent = frame
 
+    local dropdownCorner = Instance.new("UICorner")
+    dropdownCorner.CornerRadius = UDim.new(0, 6)
+    dropdownCorner.Parent = dropdown
+
     local listFrame = Instance.new("Frame")
-    listFrame.Size = UDim2.new(0, 320, 0, 0)
-    listFrame.Position = UDim2.new(0, 10, 0, 358)
-    listFrame.BackgroundTransparency = 1
+    listFrame.Size = UDim2.new(0, 340, 0, 0)
+    listFrame.Position = UDim2.new(0, 10, 0, 318)
+    listFrame.BackgroundColor3 = Color3.fromRGB(35, 45, 58)
+    listFrame.BorderSizePixel = 0
+    listFrame.ClipsDescendants = true
     listFrame.Parent = frame
+
+    local listFrameCorner = Instance.new("UICorner")
+    listFrameCorner.CornerRadius = UDim.new(0, 6)
+    listFrameCorner.Parent = listFrame
 
     local function refreshSeedList()
         listFrame:ClearAllChildren()
+        local corner = Instance.new("UICorner")
+        corner.CornerRadius = UDim.new(0, 6)
+        corner.Parent = listFrame
+
         for i, seedName in ipairs(seedOptions) do
             local seedButton = Instance.new("TextButton")
-            seedButton.Size = UDim2.new(1, 0, 0, 30)
-            seedButton.Position = UDim2.new(0, 0, 0, (i - 1) * 34)
+            seedButton.Size = UDim2.new(1, 0, 0, 32)
+            seedButton.Position = UDim2.new(0, 0, 0, (i - 1) * 36)
             seedButton.BackgroundColor3 = Color3.fromRGB(60, 72, 98)
             seedButton.TextColor3 = Color3.fromRGB(255, 255, 255)
             seedButton.Font = Enum.Font.Gotham
             seedButton.Text = seedName
             seedButton.TextScaled = true
+            seedButton.BorderSizePixel = 0
             seedButton.Parent = listFrame
             seedButton.MouseButton1Click:Connect(function()
                 chosenSeed = seedName
                 seedLabel.Text = "Choose Seed: " .. chosenSeed
-                listFrame.Size = UDim2.new(0, 320, 0, 0)
+                listFrame.Size = UDim2.new(0, 340, 0, 0)
             end)
         end
     end
 
     dropdown.MouseButton1Click:Connect(function()
         if listFrame.Size.Y.Offset == 0 then
-            listFrame.Size = UDim2.new(0, 320, 0, #seedOptions * 34)
+            listFrame.Size = UDim2.new(0, 340, 0, #seedOptions * 36)
             refreshSeedList()
         else
-            listFrame.Size = UDim2.new(0, 320, 0, 0)
+            listFrame.Size = UDim2.new(0, 340, 0, 0)
         end
     end)
 
     local ideas = Instance.new("TextLabel")
-    ideas.Size = UDim2.new(0, 320, 0, 58)
-    ideas.Position = UDim2.new(0, 10, 0, 370 + #seedOptions * 34)
+    ideas.Size = UDim2.new(0, 340, 0, 70)
+    ideas.Position = UDim2.new(0, 10, 0, 360)
     ideas.BackgroundTransparency = 1
     ideas.TextColor3 = Color3.fromRGB(190, 190, 190)
     ideas.Text = "Ideas: Auto place fertilizer, auto upgrade tools, auto collect special events."
@@ -346,71 +446,8 @@ local function createFallbackUI()
     ideas.Parent = frame
 end
 
-if WindUI and type(WindUI.CreateWindow) == "function" then
-    local window = WindUI:CreateWindow({
-        Title = "Grow A Garden Auto Farm",
-        Size = UDim2.new(0, 380, 0, 500),
-        Theme = "Dark",
-    })
-
-    local page = window:AddPage("Main")
-    local section = page:AddSection("Automation")
-
-    section:AddToggle("Auto Farm", false, function(value)
-        enabled.autoFarm = value
-    end)
-    section:AddToggle("Auto Collect", false, function(value)
-        enabled.autoCollect = value
-    end)
-    section:AddToggle("Auto Buy Seed", false, function(value)
-        enabled.autoBuySeed = value
-    end)
-    section:AddToggle("Auto Plant Seed", false, function(value)
-        enabled.autoPlant = value
-    end)
-    section:AddToggle("Auto Sell", false, function(value)
-        enabled.autoSell = value
-    end)
-
-    section:AddDropdown("Choose Seed", seedOptions, 1, function(selected)
-        chosenSeed = selected
-    end)
-
-    section:AddLabel("Ideas:")
-    section:AddLabel("- Auto place fertilizer when planting")
-    section:AddLabel("- Auto upgrade tools or farm plots")
-    section:AddLabel("- Auto collect special event fruit and bonuses")
-else
-   local function createFallbackUI()
-    local screenGui = Instance.new("ScreenGui")
-    screenGui.Name = "AlbanianHubUI"
-    screenGui.ResetOnSpawn = false
-    
-    local success, err = pcall(function()
-        screenGui.Parent = game:GetService("CoreGui")
-    end)
-
-    if not success then
-        screenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
-    end
-
-    local mainFrame = Instance.new("Frame")
-    mainFrame.Name = "MainFrame"
-    mainFrame.Parent = screenGui
-    mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-    mainFrame.Size = UDim2.new(0, 300, 0, 250)
-    mainFrame.Position = UDim2.new(0.5, -150, 0.5, -125)
-    mainFrame.Visible = true
-    
-    local title = Instance.new("TextLabel")
-    title.Parent = mainFrame
-    title.Size = UDim2.new(1, 0, 0, 30)
-    title.Text = "Albanian Hub - Fallback"
-    title.TextColor3 = Color3.fromRGB(255, 255, 255)
-    title.BackgroundTransparency = 1
+if not createWindUI() then
+    createFallbackUI()
 end
 
--- Call the function
-createFallbackUI()
-end
 print("Grow A Garden Auto Farm script loaded. WindUI detected:", WindUI ~= nil)
