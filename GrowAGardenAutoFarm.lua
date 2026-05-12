@@ -381,42 +381,18 @@ if WindUI and type(WindUI.CreateWindow) == "function" then
     section:AddLabel("- Auto upgrade tools or farm plots")
     section:AddLabel("- Auto collect special event fruit and bonuses")
 else
-    local function createFallbackUI()
+   local function createFallbackUI()
     local screenGui = Instance.new("ScreenGui")
-    
-    -- Try CoreGui first (standard for executors); if that fails, use PlayerGui
-    local success, err = pcall(function()
-        screenGui.Parent = game:GetService("CoreGui")
-    end)
-
-    if not success then
-        screenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
-    end
-
-    screenGui.Name = "AlbanianHubUI"
-    screenGui.ResetOnSpawn = false -- Keeps the menu open if you die
-
-    -- Create the Main Frame
-    local mainFrame = Instance.new("Frame")
-    mainFrame.Name = "MainFrame"
-    mainFrame.Parent = screenGui
-    mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-    mainFrame.Size = UDim2.new(0, 300, 0, 250)
-    mainFrame.Position = UDim2.new(0.5, -150, 0.5, -125)
-    mainFrame.Visible = true -- Crucial so you can see it
-    local function createFallbackUI()
-    local screenGui = Instance.new("ScreenGui")
-    
-    local success, err = pcall(function()
-        screenGui.Parent = game:GetService("CoreGui")
-    end)
-
-    if not success then
-        screenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
-    end
-
     screenGui.Name = "AlbanianHubUI"
     screenGui.ResetOnSpawn = false
+    
+    local success, err = pcall(function()
+        screenGui.Parent = game:GetService("CoreGui")
+    end)
+
+    if not success then
+        screenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
+    end
 
     local mainFrame = Instance.new("Frame")
     mainFrame.Name = "MainFrame"
@@ -434,8 +410,7 @@ else
     title.BackgroundTransparency = 1
 end
 
+-- Call the function
+createFallbackUI()
 end
-
-end
-
-print("Grow A Garden Auto Farm script loaded. WindUI detected:", WindUI ~= nil)
+    print("Grow A Garden Auto Farm script loaded. WindUI detected:", WindUI ~= nil)
