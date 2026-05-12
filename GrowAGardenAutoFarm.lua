@@ -191,20 +191,17 @@ end)
 -- UI setup
 local WindUI
 local success, result = pcall(function()
-       local WindUI
-local success, result = pcall(function()
+    -- Use FindFirstChild so it doesn't wait forever
     return require(ReplicatedStorage:FindFirstChild("WindUI"))
 end)
 
-if success and result then
-    WindUI = result
-else
-    warn("WindUI not found, using Fallback UI")
-    createFallbackUI()
-end
-
 if success and type(result) == "table" then
     WindUI = result
+    print("WindUI Loaded Successfully")
+else
+    warn("WindUI not found or failed to load, launching Fallback UI")
+    -- Ensure createFallbackUI is defined ABOVE this line in your file!
+    createFallbackUI()
 end
 
 local function createFallbackUI()
