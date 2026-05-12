@@ -413,4 +413,4 @@ end
 -- Call the function
 createFallbackUI()
 end
-    print("Grow A Garden Auto Farm script loaded. WindUI detected:", WindUI ~= nil)
+print("Grow A Garden Auto Farm script loaded. WindUI detected:", WindUI ~= nil)
