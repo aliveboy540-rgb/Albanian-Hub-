@@ -1,13 +1,40 @@
 -- Grow A Garden auto farm script
--- Place this LocalScript in StarterPlayerScripts or a LocalScript-friendly location
--- Requires a WindUI module in ReplicatedStorage named "WindUI" if you want the WindUI controls.
+-- Place this LocalScript in StarterPlayerScripts or another LocalScript-friendly location.
+-- If you want WindUI controls, add a WindUI ModuleScript named "WindUI" under ReplicatedStorage or ReplicatedFirst.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ReplicatedFirst = game:GetService("ReplicatedFirst")
 local Workspace = game:GetService("Workspace")
-local LocalPlayer = Players.LocalPlayer
 local RunService = game:GetService("RunService")
+
+if RunService:IsServer() then
+    warn("Grow A Garden Auto Farm must run in a LocalScript on the client.")
+    return
+end
+
+local function getLocalPlayer(timeout)
+    local player = Players.LocalPlayer
+    if player then
+        return player
+    end
+
+    local startTime = tick()
+    while tick() - startTime < (timeout or 10) do
+        player = Players.LocalPlayer
+        if player then
+            return player
+        end
+        task.wait(0.1)
+    end
+    return nil
+end
+
+local LocalPlayer = getLocalPlayer()
+if not LocalPlayer then
+    warn("Grow A Garden Auto Farm could not find LocalPlayer. This script must run as a LocalScript.")
+    return
+end
 
 local AUTO_FARM_DELAY = 0.15
 local AUTO_COLLECT_DELAY = 0.2
@@ -34,13 +61,20 @@ local seedOptions = {
 }
 
 local function findRemote(nameCandidates)
-    local folders = {ReplicatedStorage, Workspace, LocalPlayer:FindFirstChild("PlayerGui")}
-    for _, folder in ipairs(folders) do
-        if folder then
-            for _, obj in ipairs(folder:GetDescendants()) do
+    local searchParents = {
+        ReplicatedStorage,
+        ReplicatedFirst,
+        LocalPlayer:FindFirstChild("PlayerGui"),
+        LocalPlayer:FindFirstChild("Backpack"),
+    }
+
+    for _, parent in ipairs(searchParents) do
+        if parent then
+            for _, obj in ipairs(parent:GetDescendants()) do
                 if obj:IsA("RemoteFunction") or obj:IsA("RemoteEvent") then
-                    for _, name in ipairs(nameCandidates) do
-                        if obj.Name:find(name) then
+                    local objName = obj.Name:lower()
+                    for _, candidate in ipairs(nameCandidates) do
+                        if objName:find(candidate:lower(), 1, true) then
                             return obj
                         end
                     end
@@ -48,6 +82,7 @@ local function findRemote(nameCandidates)
             end
         end
     end
+
     return nil
 end
 
@@ -56,26 +91,28 @@ local function fireRemote(nameCandidates, payload)
     if not remote then
         return false
     end
+
     if remote:IsA("RemoteFunction") then
         local success, result = pcall(function()
             return remote:InvokeServer(payload)
         end)
         return success, result
     elseif remote:IsA("RemoteEvent") then
-        pcall(function()
+        local success = pcall(function()
             remote:FireServer(payload)
         end)
-        return true
+        return success
     end
+
     return false
 end
 
 local function findPlace(nameCandidates)
     for _, obj in ipairs(Workspace:GetDescendants()) do
-        if obj:IsA("BasePart") or obj:IsA("MeshPart") or obj:IsA("Part") then
+        if obj:IsA("BasePart") then
             local name = obj.Name:lower()
             for _, candidate in ipairs(nameCandidates) do
-                if name:find(candidate:lower()) then
+                if name:find(candidate:lower(), 1, true) then
                     return obj
                 end
             end
@@ -85,39 +122,43 @@ local function findPlace(nameCandidates)
 end
 
 local function teleportTo(nameCandidates)
-    if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+    local character = LocalPlayer.Character
+    local root = character and character:FindFirstChild("HumanoidRootPart")
+    if not root then
         return false
     end
+
     local destination = findPlace(nameCandidates)
     if not destination then
         return false
     end
-    local root = LocalPlayer.Character.HumanoidRootPart
+
     root.CFrame = destination.CFrame + Vector3.new(0, 5, 0)
     return true
 end
 
 local function collectFruit()
     local candidates = {"CollectFruit", "Collect", "HarvestFruit", "PickupFruit", "CollectItem"}
-    local fruitCandidates = {}
     for _, obj in ipairs(Workspace:GetDescendants()) do
         if obj:IsA("BasePart") then
             local name = obj.Name:lower()
-            if name:find("fruit") or name:find("apple") or name:find("banana") or name:find("cherry") or name:find("pumpkin") or name:find("melon") then
-                table.insert(fruitCandidates, obj)
+            if name:find("fruit", 1, true)
+                or name:find("apple", 1, true)
+                or name:find("banana", 1, true)
+                or name:find("cherry", 1, true)
+                or name:find("pumpkin", 1, true)
+                or name:find("melon", 1, true)
+            then
+                local payload = {
+                    fruit = obj,
+                    FruitName = obj.Name,
+                    Name = obj.Name,
+                    Position = obj.Position,
+                }
+                fireRemote(candidates, payload)
+                task.wait(0.05)
             end
         end
-    end
-
-    for _, fruit in ipairs(fruitCandidates) do
-        local payload = {
-            fruit = fruit,
-            FruitName = fruit.Name,
-            Name = fruit.Name,
-            Position = fruit.Position,
-        }
-        fireRemote(candidates, payload)
-        task.wait(0.05)
     end
 end
 
@@ -151,11 +192,11 @@ end
 local function safeTask(fn)
     local ok, err = pcall(fn)
     if not ok then
-        warn("AutoFarm error:", err)
+        warn("Grow A Garden Auto Farm error:", err)
     end
 end
 
-spawn(function()
+task.spawn(function()
     while true do
         if enabled.autoCollect then
             safeTask(collectFruit)
@@ -169,18 +210,18 @@ spawn(function()
     end
 end)
 
-spawn(function()
+task.spawn(function()
     while task.wait(AUTO_BUY_DELAY) do
         if enabled.autoBuySeed then
             safeTask(function()
-                teleportTo({"Seed Shop", "SeedShot", "Seed Shot", "SeedVendor", "SeedPurchase", "Shop"})
+                teleportTo({"Seed Shop", "SeedShot", "Seed Shop", "Seed Vendor", "SeedVendor", "SeedPurchase", "Shop"})
                 buySeed()
             end)
         end
     end
 end)
 
-spawn(function()
+task.spawn(function()
     while task.wait(AUTO_PLANT_DELAY) do
         if enabled.autoPlant then
             safeTask(plantSeed)
@@ -188,7 +229,7 @@ spawn(function()
     end
 end)
 
-spawn(function()
+task.spawn(function()
     while task.wait(AUTO_SELL_DELAY) do
         if enabled.autoSell then
             safeTask(function()
