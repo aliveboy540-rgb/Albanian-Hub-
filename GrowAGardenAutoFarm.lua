@@ -381,7 +381,61 @@ if WindUI and type(WindUI.CreateWindow) == "function" then
     section:AddLabel("- Auto upgrade tools or farm plots")
     section:AddLabel("- Auto collect special event fruit and bonuses")
 else
-    createFallbackUI()
+    local function createFallbackUI()
+    local screenGui = Instance.new("ScreenGui")
+    
+    -- Try CoreGui first (standard for executors); if that fails, use PlayerGui
+    local success, err = pcall(function()
+        screenGui.Parent = game:GetService("CoreGui")
+    end)
+
+    if not success then
+        screenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
+    end
+
+    screenGui.Name = "AlbanianHubUI"
+    screenGui.ResetOnSpawn = false -- Keeps the menu open if you die
+
+    -- Create the Main Frame
+    local mainFrame = Instance.new("Frame")
+    mainFrame.Name = "MainFrame"
+    mainFrame.Parent = screenGui
+    mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    mainFrame.Size = UDim2.new(0, 300, 0, 250)
+    mainFrame.Position = UDim2.new(0.5, -150, 0.5, -125)
+    mainFrame.Visible = true -- Crucial so you can see it
+    local function createFallbackUI()
+    local screenGui = Instance.new("ScreenGui")
+    
+    local success, err = pcall(function()
+        screenGui.Parent = game:GetService("CoreGui")
+    end)
+
+    if not success then
+        screenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
+    end
+
+    screenGui.Name = "AlbanianHubUI"
+    screenGui.ResetOnSpawn = false
+
+    local mainFrame = Instance.new("Frame")
+    mainFrame.Name = "MainFrame"
+    mainFrame.Parent = screenGui
+    mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    mainFrame.Size = UDim2.new(0, 300, 0, 250)
+    mainFrame.Position = UDim2.new(0.5, -150, 0.5, -125)
+    mainFrame.Visible = true
+    
+    local title = Instance.new("TextLabel")
+    title.Parent = mainFrame
+    title.Size = UDim2.new(1, 0, 0, 30)
+    title.Text = "Albanian Hub - Fallback"
+    title.TextColor3 = Color3.fromRGB(255, 255, 255)
+    title.BackgroundTransparency = 1
+end
+
+end
+
 end
 
 print("Grow A Garden Auto Farm script loaded. WindUI detected:", WindUI ~= nil)
