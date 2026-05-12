@@ -191,8 +191,8 @@ end)
 -- UI setup
 local WindUI
 local success, result = pcall(function()
-    return require(ReplicatedStorage:WaitForChild("WindUI"))
-end)
+       return require(ReplicatedStorage:WaitForChild("WindUI", 1)) -- The '1' makes it wait only 1 second
+
 if success and type(result) == "table" then
     WindUI = result
 end
