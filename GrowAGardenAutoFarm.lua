@@ -487,6 +487,57 @@ local function createFallbackUI()
     ideas.Parent = frame
 end
 
+local function createWindUI()
+    if not WindUI or type(WindUI.CreateWindow) ~= "function" then
+        return false
+    end
+
+    local success, result = pcall(function()
+        local window = WindUI:CreateWindow({
+            Title = "Grow A Garden Auto Farm",
+            Size = UDim2.new(0, 380, 0, 480),
+            Theme = "Dark",
+        })
+
+        if not window then
+            error("WindUI.CreateWindow returned nil")
+        end
+
+        local page = window:AddPage("Main")
+        local section = page:AddSection("Automation")
+
+        section:AddToggle("Auto Farm", false, function(value)
+            enabled.autoFarm = value
+        end)
+        section:AddToggle("Auto Collect", false, function(value)
+            enabled.autoCollect = value
+        end)
+        section:AddToggle("Auto Buy Seed", false, function(value)
+            enabled.autoBuySeed = value
+        end)
+        section:AddToggle("Auto Plant Seed", false, function(value)
+            enabled.autoPlant = value
+        end)
+        section:AddToggle("Auto Sell", false, function(value)
+            enabled.autoSell = value
+        end)
+
+        section:AddDropdown("Choose Seed", seedOptions, 1, function(selected)
+            chosenSeed = selected
+        end)
+
+        section:AddLabel("Ideas:")
+        section:AddLabel("- Auto place fertilizer when planting")
+        section:AddLabel("- Auto upgrade tools or farm plots")
+        section:AddLabel("- Auto collect special event fruit and bonuses")
+    end)
+
+    if not success then
+        warn("Grow A Garden Auto Farm WindUI failed:", result)
+    end
+
+    return success
+end
 if not createWindUI() then
     createFallbackUI()
 end
