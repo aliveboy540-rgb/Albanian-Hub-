@@ -191,7 +191,17 @@ end)
 -- UI setup
 local WindUI
 local success, result = pcall(function()
-       return require(ReplicatedStorage:WaitForChild("WindUI", 1)) -- The '1' makes it wait only 1 second
+       local WindUI
+local success, result = pcall(function()
+    return require(ReplicatedStorage:FindFirstChild("WindUI"))
+end)
+
+if success and result then
+    WindUI = result
+else
+    warn("WindUI not found, using Fallback UI")
+    createFallbackUI()
+end
 
 if success and type(result) == "table" then
     WindUI = result
