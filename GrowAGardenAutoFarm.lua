@@ -66,6 +66,33 @@ local function fireRemote(nameCandidates, payload)
     return false
 end
 
+local function findPlace(nameCandidates)
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        if obj:IsA("BasePart") or obj:IsA("MeshPart") or obj:IsA("Part") then
+            local name = obj.Name:lower()
+            for _, candidate in ipairs(nameCandidates) do
+                if name:find(candidate:lower()) then
+                    return obj
+                end
+            end
+        end
+    end
+    return nil
+end
+
+local function teleportTo(nameCandidates)
+    if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        return false
+    end
+    local destination = findPlace(nameCandidates)
+    if not destination then
+        return false
+    end
+    local root = LocalPlayer.Character.HumanoidRootPart
+    root.CFrame = destination.CFrame + Vector3.new(0, 5, 0)
+    return true
+end
+
 local function collectFruit()
     local candidates = {"CollectFruit", "Collect", "HarvestFruit", "PickupFruit", "CollectItem"}
     local fruitCandidates = {}
@@ -134,7 +161,10 @@ end)
 spawn(function()
     while task.wait(AUTO_BUY_DELAY) do
         if enabled.autoBuySeed then
-            safeTask(buySeed)
+            safeTask(function()
+                teleportTo({"Seed Shop", "SeedShot", "Seed Shot", "SeedVendor", "SeedPurchase", "Shop"})
+                buySeed()
+            end)
         end
     end
 end)
@@ -150,7 +180,10 @@ end)
 spawn(function()
     while task.wait(AUTO_SELL_DELAY) do
         if enabled.autoSell then
-            safeTask(sellInventory)
+            safeTask(function()
+                teleportTo({"Sell Place", "SellStation", "Sell Area", "SellShop", "CashOut", "Cashier"})
+                sellInventory()
+            end)
         end
     end
 end)
